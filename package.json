@@ -1,0 +1,32 @@
+{
+  "name": "whatsapp-ai-bot-vercel",
+  "version": "1.0.0",
+  "description": "WhatsApp AI Bot with Gemini Integration - Vercel Deployment",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node api/index.js",
+    "dev": "vercel dev",
+    "build": "echo 'Build complete'",
+    "test": "echo 'No tests specified'"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "whatsapp-web.js": "^1.23.0",
+    "qrcode": "^1.5.3",
+    "@google/generative-ai": "^0.2.1",
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "ai",
+    "gemini",
+    "chatbot",
+    "vercel"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

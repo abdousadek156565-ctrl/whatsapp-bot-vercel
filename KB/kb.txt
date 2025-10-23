@@ -1,0 +1,18 @@
+Welcome to the WhatsApp AI Bot Knowledge Base!
+
+This is a sample knowledge base for your WhatsApp AI bot. You can customize this content through the dashboard.
+
+Features:
+- AI-powered responses in Egyptian Arabic
+- Multi-API key support with automatic fallback
+- Knowledge base management
+- Real-time message handling
+- QR code authentication
+
+To get started:
+1. Deploy this to Vercel
+2. Set your Gemini API keys
+3. Scan the QR code with WhatsApp
+4. Start chatting!
+
+For support, please check the documentation or contact the administrator.
