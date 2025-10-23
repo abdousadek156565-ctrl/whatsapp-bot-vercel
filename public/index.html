@@ -123,7 +123,7 @@
                         <div class="row mb-4">
                             <div class="col-12">
                                 <div class="d-flex gap-2 flex-wrap">
-                                    <button id="start-btn" class="btn btn-primary">
+                                    <button id="start-btn" class="btn btn-primary" onclick="handleStartClick()">
                                         <i class="fas fa-play me-2"></i>Start Bot
                                     </button>
                                     <button id="stop-btn" class="btn btn-danger" disabled>
@@ -321,24 +321,57 @@
         }
 
         async function startBot() {
+            console.log('startBot function called');
+            addToLog('Starting bot function called...', 'info');
+            
             try {
+                if (!startBtn) {
+                    console.error('Start button not found in startBot function');
+                    addToLog('Error: Start button element not found', 'error');
+                    return;
+                }
+                
                 startBtn.disabled = true;
                 startBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting...';
                 
-                const response = await fetch('/api/start', { method: 'POST' });
-                const data = await response.json();
+                addToLog('Making API call to /api/start...', 'info');
+                console.log('Making fetch request to /api/start');
                 
-                addToLog(data.message, 'success');
+                const response = await fetch('/api/start', { 
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('Response received:', response.status, response.statusText);
+                addToLog(`API Response: ${response.status} ${response.statusText}`, 'info');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                addToLog(`✅ ${data.message}`, 'success');
+                
+                if (data.warning) {
+                    addToLog(`⚠️ ${data.warning}`, 'info');
+                }
                 
                 // Start checking status more frequently
                 if (checkInterval) clearInterval(checkInterval);
                 checkInterval = setInterval(checkStatus, 2000);
                 
             } catch (error) {
-                addToLog(`Start failed: ${error.message}`, 'error');
+                console.error('Error in startBot:', error);
+                addToLog(`❌ Start failed: ${error.message}`, 'error');
             } finally {
-                startBtn.innerHTML = '<i class="fas fa-play me-2"></i>Start Bot';
-                startBtn.disabled = false;
+                if (startBtn) {
+                    startBtn.innerHTML = '<i class="fas fa-play me-2"></i>Start Bot';
+                    startBtn.disabled = false;
+                }
             }
         }
 
@@ -450,18 +483,67 @@
             `;
         }
 
-        // Event Listeners
-        startBtn.addEventListener('click', startBot);
-        stopBtn.addEventListener('click', stopBot);
-        refreshBtn.addEventListener('click', checkStatus);
-        sendMessageBtn.addEventListener('click', sendMessage);
-        loadKbBtn.addEventListener('click', loadKnowledgeBase);
-        saveKbBtn.addEventListener('click', saveKnowledgeBase);
-        clearLogBtn.addEventListener('click', clearLog);
+        // Backup inline click handler
+        function handleStartClick() {
+            console.log('Inline start click handler called');
+            addToLog('Start button clicked (inline handler)', 'info');
+            startBot();
+        }
+
+        // Event Listeners with error handling
+        if (startBtn) {
+            startBtn.addEventListener('click', function(e) {
+                console.log('Start button clicked!');
+                addToLog('Start button clicked - attempting to start bot...', 'info');
+                startBot();
+            });
+        } else {
+            console.error('Start button not found!');
+        }
+        
+        if (stopBtn) {
+            stopBtn.addEventListener('click', stopBot);
+        }
+        
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', checkStatus);
+        }
+        
+        if (sendMessageBtn) {
+            sendMessageBtn.addEventListener('click', sendMessage);
+        }
+        
+        if (loadKbBtn) {
+            loadKbBtn.addEventListener('click', loadKnowledgeBase);
+        }
+        
+        if (saveKbBtn) {
+            saveKbBtn.addEventListener('click', saveKnowledgeBase);
+        }
+        
+        if (clearLogBtn) {
+            clearLogBtn.addEventListener('click', clearLog);
+        }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM Content Loaded');
             addToLog('Dashboard loaded - checking connection status...', 'info');
+            
+            // Debug: Check if all elements exist
+            console.log('Button elements check:');
+            console.log('- startBtn:', !!startBtn);
+            console.log('- stopBtn:', !!stopBtn);
+            console.log('- refreshBtn:', !!refreshBtn);
+            console.log('- sendMessageBtn:', !!sendMessageBtn);
+            
+            if (!startBtn) {
+                addToLog('❌ Critical Error: Start button not found!', 'error');
+                console.error('Start button element with ID "start-btn" not found');
+            } else {
+                addToLog('✅ Start button found and ready', 'success');
+            }
+            
             checkStatus();
             
             // Check status every 10 seconds
