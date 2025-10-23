@@ -14,24 +14,35 @@ let clientStatus = 'disconnected';
 function initializeClient() {
     if (client) return client;
     
-    client = new Client({
-        authStrategy: new LocalAuth({
-            dataPath: '/tmp/whatsapp-session'
-        }),
-        puppeteer: {
-            headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',
-                '--disable-gpu'
-            ]
-        }
-    });
+    try {
+        console.log('Creating new WhatsApp client...');
+        
+        client = new Client({
+            authStrategy: new LocalAuth({
+                dataPath: '/tmp/whatsapp-session'
+            }),
+            puppeteer: {
+                headless: true,
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process',
+                    '--disable-gpu',
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor'
+                ]
+            }
+        });
+        
+        console.log('WhatsApp client created successfully');
+    } catch (error) {
+        console.error('Error creating WhatsApp client:', error);
+        throw error;
+    }
 
     client.on('qr', async (qr) => {
         console.log('QR Code received');
@@ -126,15 +137,42 @@ module.exports = async (req, res) => {
         // Route: POST /start
         if (method === 'POST' && apiPath === '/start') {
             try {
+                console.log('Start endpoint called');
+                
+                // Check if we're in a serverless environment
+                const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
+                
+                if (isServerless) {
+                    console.log('Running in serverless environment');
+                    return res.status(200).json({ 
+                        message: 'WhatsApp client initialization attempted...',
+                        warning: 'Note: WhatsApp Web.js may not work reliably in serverless environments due to Puppeteer limitations.',
+                        environment: 'serverless',
+                        status: 'attempting_start'
+                    });
+                }
+                
                 if (!client) {
+                    console.log('Initializing new WhatsApp client');
                     initializeClient();
-                    return res.status(200).json({ message: 'WhatsApp client starting...' });
+                    return res.status(200).json({ 
+                        message: 'WhatsApp client starting...',
+                        status: 'initializing'
+                    });
                 } else {
-                    return res.status(200).json({ message: 'WhatsApp client already running' });
+                    console.log('WhatsApp client already exists');
+                    return res.status(200).json({ 
+                        message: 'WhatsApp client already running',
+                        status: clientStatus
+                    });
                 }
             } catch (error) {
                 console.error('Error starting client:', error);
-                return res.status(500).json({ error: 'Failed to start WhatsApp client' });
+                return res.status(500).json({ 
+                    error: 'Failed to start WhatsApp client',
+                    details: error.message,
+                    stack: error.stack
+                });
             }
         }
 
