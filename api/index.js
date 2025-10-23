@@ -1,17 +1,10 @@
-const express = require('express');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs').promises;
 const { handleGeminiRequest } = require('../geminiHandler');
 
-const app = express();
-
-// Middleware
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
-
-// Global variables for WhatsApp client
+// Global variables for WhatsApp client (shared across function calls)
 let client = null;
 let qrCodeData = null;
 let isClientReady = false;
@@ -88,132 +81,160 @@ function initializeClient() {
     return client;
 }
 
-// Routes
-app.get('/api/status', (req, res) => {
-    res.json({
-        status: clientStatus,
-        isReady: isClientReady,
-        hasQR: !!qrCodeData
-    });
-});
+// Main serverless function handler
+module.exports = async (req, res) => {
+    // Enable CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-app.get('/api/qr', (req, res) => {
-    if (qrCodeData) {
-        res.json({ qr: qrCodeData });
-    } else {
-        res.status(404).json({ error: 'QR code not available' });
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
     }
-});
 
-app.post('/api/start', (req, res) => {
+    const { url, method } = req;
+    const urlPath = url.replace('/api', '');
+
     try {
-        if (!client) {
-            initializeClient();
-            res.json({ message: 'WhatsApp client starting...' });
-        } else {
-            res.json({ message: 'WhatsApp client already running' });
+        // Route: GET /status
+        if (method === 'GET' && urlPath === '/status') {
+            return res.json({
+                status: clientStatus,
+                isReady: isClientReady,
+                hasQR: !!qrCodeData
+            });
         }
-    } catch (error) {
-        console.error('Error starting client:', error);
-        res.status(500).json({ error: 'Failed to start WhatsApp client' });
-    }
-});
 
-app.post('/api/stop', async (req, res) => {
-    try {
-        if (client) {
-            await client.destroy();
-            client = null;
-            isClientReady = false;
-            clientStatus = 'disconnected';
-            qrCodeData = null;
-            res.json({ message: 'WhatsApp client stopped' });
-        } else {
-            res.json({ message: 'WhatsApp client not running' });
+        // Route: GET /qr
+        if (method === 'GET' && urlPath === '/qr') {
+            if (qrCodeData) {
+                return res.json({ qr: qrCodeData });
+            } else {
+                return res.status(404).json({ error: 'QR code not available' });
+            }
         }
-    } catch (error) {
-        console.error('Error stopping client:', error);
-        res.status(500).json({ error: 'Failed to stop WhatsApp client' });
-    }
-});
 
-app.post('/api/send-message', async (req, res) => {
-    const { number, message } = req.body;
-    
-    if (!isClientReady) {
-        return res.status(400).json({ error: 'WhatsApp client not ready' });
-    }
-    
-    try {
-        const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
-        await client.sendMessage(chatId, message);
-        res.json({ success: true, message: 'Message sent successfully' });
-    } catch (error) {
-        console.error('Error sending message:', error);
-        res.status(500).json({ error: 'Failed to send message' });
-    }
-});
-
-// Knowledge Base routes
-app.get('/api/knowledge-base', async (req, res) => {
-    try {
-        const kbPath = path.join(__dirname, '../KB/kb.txt');
-        const content = await fs.readFile(kbPath, 'utf8');
-        res.json({ content });
-    } catch (error) {
-        console.error('Error reading knowledge base:', error);
-        res.status(500).json({ error: 'Failed to read knowledge base' });
-    }
-});
-
-app.post('/api/knowledge-base', async (req, res) => {
-    try {
-        const { content } = req.body;
-        const kbPath = path.join(__dirname, '../KB/kb.txt');
-        
-        // Ensure KB directory exists
-        await fs.mkdir(path.dirname(kbPath), { recursive: true });
-        await fs.writeFile(kbPath, content, 'utf8');
-        
-        res.json({ success: true, message: 'Knowledge base updated successfully' });
-    } catch (error) {
-        console.error('Error updating knowledge base:', error);
-        res.status(500).json({ error: 'Failed to update knowledge base' });
-    }
-});
-
-// Scenarios routes
-app.get('/api/scenarios', async (req, res) => {
-    try {
-        const scenariosPath = path.join(__dirname, '../scenarios.json');
-        const content = await fs.readFile(scenariosPath, 'utf8');
-        res.json(JSON.parse(content));
-    } catch (error) {
-        if (error.code === 'ENOENT') {
-            res.json([]);
-        } else {
-            console.error('Error reading scenarios:', error);
-            res.status(500).json({ error: 'Failed to read scenarios' });
+        // Route: POST /start
+        if (method === 'POST' && urlPath === '/start') {
+            try {
+                if (!client) {
+                    initializeClient();
+                    return res.json({ message: 'WhatsApp client starting...' });
+                } else {
+                    return res.json({ message: 'WhatsApp client already running' });
+                }
+            } catch (error) {
+                console.error('Error starting client:', error);
+                return res.status(500).json({ error: 'Failed to start WhatsApp client' });
+            }
         }
-    }
-});
 
-app.post('/api/scenarios', async (req, res) => {
-    try {
-        const scenarios = req.body;
-        const scenariosPath = path.join(__dirname, '../scenarios.json');
-        await fs.writeFile(scenariosPath, JSON.stringify(scenarios, null, 2), 'utf8');
-        res.json({ success: true, message: 'Scenarios updated successfully' });
+        // Route: POST /stop
+        if (method === 'POST' && urlPath === '/stop') {
+            try {
+                if (client) {
+                    await client.destroy();
+                    client = null;
+                    isClientReady = false;
+                    clientStatus = 'disconnected';
+                    qrCodeData = null;
+                    return res.json({ message: 'WhatsApp client stopped' });
+                } else {
+                    return res.json({ message: 'WhatsApp client not running' });
+                }
+            } catch (error) {
+                console.error('Error stopping client:', error);
+                return res.status(500).json({ error: 'Failed to stop WhatsApp client' });
+            }
+        }
+
+        // Route: POST /send-message
+        if (method === 'POST' && urlPath === '/send-message') {
+            const { number, message } = req.body;
+            
+            if (!isClientReady) {
+                return res.status(400).json({ error: 'WhatsApp client not ready' });
+            }
+            
+            try {
+                const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+                await client.sendMessage(chatId, message);
+                return res.json({ success: true, message: 'Message sent successfully' });
+            } catch (error) {
+                console.error('Error sending message:', error);
+                return res.status(500).json({ error: 'Failed to send message' });
+            }
+        }
+
+        // Route: GET /knowledge-base
+        if (method === 'GET' && urlPath === '/knowledge-base') {
+            try {
+                const kbPath = path.join(__dirname, '../KB/kb.txt');
+                const content = await fs.readFile(kbPath, 'utf8');
+                return res.json({ content });
+            } catch (error) {
+                console.error('Error reading knowledge base:', error);
+                return res.status(500).json({ error: 'Failed to read knowledge base' });
+            }
+        }
+
+        // Route: POST /knowledge-base
+        if (method === 'POST' && urlPath === '/knowledge-base') {
+            try {
+                const { content } = req.body;
+                const kbPath = path.join(__dirname, '../KB/kb.txt');
+                
+                // Ensure KB directory exists
+                await fs.mkdir(path.dirname(kbPath), { recursive: true });
+                await fs.writeFile(kbPath, content, 'utf8');
+                
+                return res.json({ success: true, message: 'Knowledge base updated successfully' });
+            } catch (error) {
+                console.error('Error updating knowledge base:', error);
+                return res.status(500).json({ error: 'Failed to update knowledge base' });
+            }
+        }
+
+        // Route: GET /scenarios
+        if (method === 'GET' && urlPath === '/scenarios') {
+            try {
+                const scenariosPath = path.join(__dirname, '../scenarios.json');
+                const content = await fs.readFile(scenariosPath, 'utf8');
+                return res.json(JSON.parse(content));
+            } catch (error) {
+                if (error.code === 'ENOENT') {
+                    return res.json([]);
+                } else {
+                    console.error('Error reading scenarios:', error);
+                    return res.status(500).json({ error: 'Failed to read scenarios' });
+                }
+            }
+        }
+
+        // Route: POST /scenarios
+        if (method === 'POST' && urlPath === '/scenarios') {
+            try {
+                const scenarios = req.body;
+                const scenariosPath = path.join(__dirname, '../scenarios.json');
+                await fs.writeFile(scenariosPath, JSON.stringify(scenarios, null, 2), 'utf8');
+                return res.json({ success: true, message: 'Scenarios updated successfully' });
+            } catch (error) {
+                console.error('Error updating scenarios:', error);
+                return res.status(500).json({ error: 'Failed to update scenarios' });
+            }
+        }
+
+        // Default route - redirect to dashboard
+        if (method === 'GET' && urlPath === '/') {
+            return res.redirect('/');
+        }
+
+        // 404 for unmatched routes
+        return res.status(404).json({ error: 'Route not found' });
+
     } catch (error) {
-        console.error('Error updating scenarios:', error);
-        res.status(500).json({ error: 'Failed to update scenarios' });
+        console.error('Server error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
     }
-});
-
-// Serve static files
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../public/index.html'));
-});
-
-// Export for Vercel
-module.exports = app;
+};
