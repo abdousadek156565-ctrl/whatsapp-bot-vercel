@@ -93,13 +93,21 @@ module.exports = async (req, res) => {
         return;
     }
 
-    const { url, method } = req;
-    const urlPath = url.replace('/api', '');
+    const { method } = req;
+    
+    // Parse the URL to get the path after /api
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const pathname = url.pathname;
+    
+    // Remove /api prefix if present
+    const apiPath = pathname.startsWith('/api') ? pathname.substring(4) : pathname;
+    
+    console.log(`${method} ${pathname} -> ${apiPath}`);
 
     try {
         // Route: GET /status
-        if (method === 'GET' && urlPath === '/status') {
-            return res.json({
+        if (method === 'GET' && apiPath === '/status') {
+            return res.status(200).json({
                 status: clientStatus,
                 isReady: isClientReady,
                 hasQR: !!qrCodeData
@@ -107,22 +115,22 @@ module.exports = async (req, res) => {
         }
 
         // Route: GET /qr
-        if (method === 'GET' && urlPath === '/qr') {
+        if (method === 'GET' && apiPath === '/qr') {
             if (qrCodeData) {
-                return res.json({ qr: qrCodeData });
+                return res.status(200).json({ qr: qrCodeData });
             } else {
                 return res.status(404).json({ error: 'QR code not available' });
             }
         }
 
         // Route: POST /start
-        if (method === 'POST' && urlPath === '/start') {
+        if (method === 'POST' && apiPath === '/start') {
             try {
                 if (!client) {
                     initializeClient();
-                    return res.json({ message: 'WhatsApp client starting...' });
+                    return res.status(200).json({ message: 'WhatsApp client starting...' });
                 } else {
-                    return res.json({ message: 'WhatsApp client already running' });
+                    return res.status(200).json({ message: 'WhatsApp client already running' });
                 }
             } catch (error) {
                 console.error('Error starting client:', error);
@@ -131,7 +139,7 @@ module.exports = async (req, res) => {
         }
 
         // Route: POST /stop
-        if (method === 'POST' && urlPath === '/stop') {
+        if (method === 'POST' && apiPath === '/stop') {
             try {
                 if (client) {
                     await client.destroy();
@@ -139,9 +147,9 @@ module.exports = async (req, res) => {
                     isClientReady = false;
                     clientStatus = 'disconnected';
                     qrCodeData = null;
-                    return res.json({ message: 'WhatsApp client stopped' });
+                    return res.status(200).json({ message: 'WhatsApp client stopped' });
                 } else {
-                    return res.json({ message: 'WhatsApp client not running' });
+                    return res.status(200).json({ message: 'WhatsApp client not running' });
                 }
             } catch (error) {
                 console.error('Error stopping client:', error);
@@ -150,7 +158,7 @@ module.exports = async (req, res) => {
         }
 
         // Route: POST /send-message
-        if (method === 'POST' && urlPath === '/send-message') {
+        if (method === 'POST' && apiPath === '/send-message') {
             const { number, message } = req.body;
             
             if (!isClientReady) {
@@ -160,7 +168,7 @@ module.exports = async (req, res) => {
             try {
                 const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
                 await client.sendMessage(chatId, message);
-                return res.json({ success: true, message: 'Message sent successfully' });
+                return res.status(200).json({ success: true, message: 'Message sent successfully' });
             } catch (error) {
                 console.error('Error sending message:', error);
                 return res.status(500).json({ error: 'Failed to send message' });
@@ -168,11 +176,11 @@ module.exports = async (req, res) => {
         }
 
         // Route: GET /knowledge-base
-        if (method === 'GET' && urlPath === '/knowledge-base') {
+        if (method === 'GET' && apiPath === '/knowledge-base') {
             try {
                 const kbPath = path.join(__dirname, '../KB/kb.txt');
                 const content = await fs.readFile(kbPath, 'utf8');
-                return res.json({ content });
+                return res.status(200).json({ content });
             } catch (error) {
                 console.error('Error reading knowledge base:', error);
                 return res.status(500).json({ error: 'Failed to read knowledge base' });
@@ -180,7 +188,7 @@ module.exports = async (req, res) => {
         }
 
         // Route: POST /knowledge-base
-        if (method === 'POST' && urlPath === '/knowledge-base') {
+        if (method === 'POST' && apiPath === '/knowledge-base') {
             try {
                 const { content } = req.body;
                 const kbPath = path.join(__dirname, '../KB/kb.txt');
@@ -189,7 +197,7 @@ module.exports = async (req, res) => {
                 await fs.mkdir(path.dirname(kbPath), { recursive: true });
                 await fs.writeFile(kbPath, content, 'utf8');
                 
-                return res.json({ success: true, message: 'Knowledge base updated successfully' });
+                return res.status(200).json({ success: true, message: 'Knowledge base updated successfully' });
             } catch (error) {
                 console.error('Error updating knowledge base:', error);
                 return res.status(500).json({ error: 'Failed to update knowledge base' });
@@ -197,14 +205,14 @@ module.exports = async (req, res) => {
         }
 
         // Route: GET /scenarios
-        if (method === 'GET' && urlPath === '/scenarios') {
+        if (method === 'GET' && apiPath === '/scenarios') {
             try {
                 const scenariosPath = path.join(__dirname, '../scenarios.json');
                 const content = await fs.readFile(scenariosPath, 'utf8');
-                return res.json(JSON.parse(content));
+                return res.status(200).json(JSON.parse(content));
             } catch (error) {
                 if (error.code === 'ENOENT') {
-                    return res.json([]);
+                    return res.status(200).json([]);
                 } else {
                     console.error('Error reading scenarios:', error);
                     return res.status(500).json({ error: 'Failed to read scenarios' });
@@ -213,28 +221,37 @@ module.exports = async (req, res) => {
         }
 
         // Route: POST /scenarios
-        if (method === 'POST' && urlPath === '/scenarios') {
+        if (method === 'POST' && apiPath === '/scenarios') {
             try {
                 const scenarios = req.body;
                 const scenariosPath = path.join(__dirname, '../scenarios.json');
                 await fs.writeFile(scenariosPath, JSON.stringify(scenarios, null, 2), 'utf8');
-                return res.json({ success: true, message: 'Scenarios updated successfully' });
+                return res.status(200).json({ success: true, message: 'Scenarios updated successfully' });
             } catch (error) {
                 console.error('Error updating scenarios:', error);
                 return res.status(500).json({ error: 'Failed to update scenarios' });
             }
         }
 
-        // Default route - redirect to dashboard
-        if (method === 'GET' && urlPath === '/') {
-            return res.redirect('/');
+        // Default route - return info
+        if (method === 'GET' && (apiPath === '/' || apiPath === '')) {
+            return res.status(200).json({ 
+                message: 'WhatsApp Bot API',
+                endpoints: ['/status', '/qr', '/start', '/stop', '/send-message', '/knowledge-base', '/scenarios']
+            });
         }
 
         // 404 for unmatched routes
-        return res.status(404).json({ error: 'Route not found' });
+        console.log(`Route not found: ${method} ${apiPath}`);
+        return res.status(404).json({ 
+            error: 'Route not found',
+            method: method,
+            path: apiPath,
+            available: ['/status', '/qr', '/start', '/stop', '/send-message', '/knowledge-base', '/scenarios']
+        });
 
     } catch (error) {
         console.error('Server error:', error);
-        return res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 };
