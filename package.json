@@ -2,9 +2,9 @@
   "name": "whatsapp-ai-bot-vercel",
   "version": "1.0.0",
   "description": "WhatsApp AI Bot with Gemini Integration - Vercel Deployment",
-  "main": "api/index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node api/index.js",
+    "start": "node server.js",
     "dev": "vercel dev",
     "build": "echo 'Build complete'",
     "test": "echo 'No tests specified'"
